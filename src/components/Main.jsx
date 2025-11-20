@@ -13,12 +13,44 @@ function Main() {
   useEffect(() => {
     const initApp = async () => {
       try {
-        // Инициализируем Telegram Mini App SDK
-        init();
-        const { initData } = retrieveLaunchParams();
+        let telegramUser = null;
         
-        // Получаем данные пользователя из Telegram
-        const telegramUser = initData?.user;
+        // Способ 1: Попытка через @tma.js/sdk
+        try {
+          await init();
+          const { initData } = retrieveLaunchParams();
+          telegramUser = initData?.user;
+          console.log('User from @tma.js/sdk:', telegramUser);
+        } catch (sdkError) {
+          console.warn('SDK initialization error:', sdkError);
+        }
+        
+        // Способ 2: Попытка через window.Telegram.WebApp.initDataUnsafe
+        if (!telegramUser && window.Telegram?.WebApp?.initDataUnsafe?.user) {
+          telegramUser = window.Telegram.WebApp.initDataUnsafe.user;
+          console.log('User from window.Telegram.WebApp.initDataUnsafe:', telegramUser);
+        }
+        
+        // Способ 3: Попытка парсинга initData напрямую
+        if (!telegramUser && window.Telegram?.WebApp?.initData) {
+          try {
+            const initData = window.Telegram.WebApp.initData;
+            const params = new URLSearchParams(initData);
+            const userParam = params.get('user');
+            if (userParam) {
+              telegramUser = JSON.parse(userParam);
+              console.log('User parsed from initData:', telegramUser);
+            }
+          } catch (parseError) {
+            console.warn('Error parsing initData:', parseError);
+          }
+        }
+        
+        // Проверяем, запущено ли приложение в Telegram
+        const isTelegram = window.Telegram?.WebApp?.version;
+        console.log('Is Telegram environment:', !!isTelegram);
+        console.log('Telegram WebApp version:', window.Telegram?.WebApp?.version);
+        console.log('Available initData:', !!window.Telegram?.WebApp?.initData);
         
         if (telegramUser) {
           setUser(telegramUser);
@@ -43,7 +75,13 @@ function Main() {
             setError(apiError.message || 'Ошибка при загрузке данных');
           }
         } else {
-          setError('Не удалось получить данные пользователя из Telegram');
+          // Если не в Telegram, показываем предупреждение для разработки
+          if (!isTelegram) {
+            console.warn('⚠️ Приложение запущено не в Telegram. Для работы требуется запуск через Telegram бота.');
+            setError('⚠️ Приложение должно быть запущено через Telegram бота. Откройте бота и нажмите кнопку MiniApp.');
+          } else {
+            setError('Не удалось получить данные пользователя из Telegram. Проверьте консоль для деталей.');
+          }
         }
         
         // Настраиваем кнопки Telegram через SDK

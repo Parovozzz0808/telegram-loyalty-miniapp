@@ -14,6 +14,7 @@ async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
   
   // Получаем initData из Telegram WebApp если доступен
+  // Используем прямой доступ к window.Telegram.WebApp.initData
   const initData = window.Telegram?.WebApp?.initData;
   
   const config = {
