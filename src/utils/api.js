@@ -5,7 +5,7 @@
 const API_BASE_URL = process.env.REACT_APP_API_URL || 
   (window.Telegram?.WebApp 
     ? 'https://chatty-dingo-30.loca.lt' 
-    : 'http://localhost:3001');
+    : 'http://localhost:3010');
 
 /**
  * Базовый fetch с обработкой ошибок
