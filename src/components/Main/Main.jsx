@@ -53,9 +53,37 @@ function Main() {
           }
         }
         
+        // Способ 4: Дополнительные проверки для Telegram Desktop
+        if (!telegramUser) {
+          const tg = window.Telegram?.WebApp;
+          if (tg) {
+            // Проверяем все возможные свойства
+            console.log('Telegram WebApp available:', {
+              version: tg.version,
+              initData: tg.initData ? 'exists' : 'missing',
+              initDataUnsafe: tg.initDataUnsafe ? 'exists' : 'missing',
+              platform: tg.platform,
+              colorScheme: tg.colorScheme
+            });
+            
+            // Пытаемся получить через разные пути
+            telegramUser = tg.initDataUnsafe?.user || 
+                          (tg.initData ? (() => {
+                            try {
+                              const params = new URLSearchParams(tg.initData);
+                              const userStr = params.get('user');
+                              return userStr ? JSON.parse(userStr) : null;
+                            } catch (e) {
+                              return null;
+                            }
+                          })() : null);
+          }
+        }
+        
         // Проверяем, запущено ли приложение в Telegram
         const isTelegram = window.Telegram?.WebApp?.version;
         console.log('Is Telegram environment:', !!isTelegram);
+        console.log('Telegram user found:', !!telegramUser);
         
         if (telegramUser) {
           setUser(telegramUser);
@@ -95,13 +123,18 @@ function Main() {
             setError(apiError.message || 'Ошибка при загрузке данных');
           }
         } else {
-          // Если не в Telegram, показываем предупреждение для разработки
-          if (!isTelegram) {
+          // Если данные пользователя не получены
+          if (isTelegram) {
+            // В Telegram, но данные недоступны - показываем форму авторизации
+            // Пользователь сможет ввести данные вручную
+            console.warn('⚠️ Telegram данные пользователя недоступны, но приложение запущено в Telegram');
+            console.log('Показываем форму авторизации для ручного ввода данных');
+            setShowAuth(true);
+          } else {
+            // Не в Telegram - показываем предупреждение для разработки
             console.warn('⚠️ Приложение запущено не в Telegram.');
             // Для разработки показываем форму авторизации
             setShowAuth(true);
-          } else {
-            setError('Не удалось получить данные пользователя из Telegram.');
           }
         }
         
@@ -178,7 +211,7 @@ function Main() {
   return (
     <div className="app">
       {showAuth && !userExists && (
-        <AuthModal onAuthSuccess={handleAuthSuccess} />
+        <AuthModal onAuthSuccess={handleAuthSuccess} telegramUser={user} />
       )}
       
       {!showAuth && (

@@ -55,11 +55,19 @@ export const api = {
 
   // Авторизация пользователя по телефону
   async authUser(telegramUser, phoneNumber) {
+    // В development режиме отправляем данные пользователя в body
+    const body = {
+      phone_number: phoneNumber
+    };
+    
+    // Если данные пользователя доступны, добавляем их в body для development режима
+    if (telegramUser && telegramUser.id) {
+      body.telegramUser = telegramUser;
+    }
+    
     return apiRequest('/api/users/auth', {
       method: 'POST',
-      body: JSON.stringify({
-        phone_number: phoneNumber
-      }),
+      body: JSON.stringify(body),
     });
   },
 

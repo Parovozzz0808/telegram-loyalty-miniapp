@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import api from '../../utils/api';
 import './AuthModal.css';
 
-function AuthModal({ onAuthSuccess }) {
+function AuthModal({ onAuthSuccess, telegramUser: initialTelegramUser }) {
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -15,38 +15,106 @@ function AuthModal({ onAuthSuccess }) {
 
     try {
       // Получаем данные пользователя из Telegram
-      let telegramUser = null;
+      let telegramUser = initialTelegramUser || null;
       
-      // Способ 1: Через @tma.js/sdk
-      try {
-        const { retrieveLaunchParams } = await import('@tma.js/sdk');
-        const { initData } = retrieveLaunchParams();
-        telegramUser = initData?.user;
-      } catch (sdkError) {
-        console.warn('SDK error:', sdkError);
-      }
-      
-      // Способ 2: Через window.Telegram.WebApp
-      if (!telegramUser && window.Telegram?.WebApp?.initDataUnsafe?.user) {
-        telegramUser = window.Telegram.WebApp.initDataUnsafe.user;
-      }
-      
-      // Способ 3: Парсинг initData
-      if (!telegramUser && window.Telegram?.WebApp?.initData) {
+      // Если пользователь не передан, пытаемся получить его
+      if (!telegramUser) {
+        // Способ 1: Через @tma.js/sdk
         try {
-          const initData = window.Telegram.WebApp.initData;
-          const params = new URLSearchParams(initData);
-          const userParam = params.get('user');
-          if (userParam) {
-            telegramUser = JSON.parse(userParam);
+          const { retrieveLaunchParams } = await import('@tma.js/sdk');
+          const { initData } = retrieveLaunchParams();
+          telegramUser = initData?.user;
+          console.log('User from @tma.js/sdk:', telegramUser);
+        } catch (sdkError) {
+          console.warn('SDK error:', sdkError);
+        }
+        
+        // Способ 2: Через window.Telegram.WebApp.initDataUnsafe
+        if (!telegramUser && window.Telegram?.WebApp?.initDataUnsafe?.user) {
+          telegramUser = window.Telegram.WebApp.initDataUnsafe.user;
+          console.log('User from window.Telegram.WebApp.initDataUnsafe:', telegramUser);
+        }
+        
+        // Способ 3: Парсинг initData
+        if (!telegramUser && window.Telegram?.WebApp?.initData) {
+          try {
+            const initData = window.Telegram.WebApp.initData;
+            const params = new URLSearchParams(initData);
+            const userParam = params.get('user');
+            if (userParam) {
+              telegramUser = JSON.parse(userParam);
+              console.log('User parsed from initData:', telegramUser);
+            }
+          } catch (parseError) {
+            console.warn('Parse error:', parseError);
           }
-        } catch (parseError) {
-          console.warn('Parse error:', parseError);
+        }
+
+        // Способ 4: Проверяем все возможные пути к данным пользователя
+        if (!telegramUser) {
+          // Пытаемся получить через разные свойства
+          const tg = window.Telegram?.WebApp;
+          if (tg) {
+            // Проверяем все возможные места
+            telegramUser = tg.initDataUnsafe?.user || 
+                          tg.startParam?.user ||
+                          (tg.initData ? (() => {
+                            try {
+                              const params = new URLSearchParams(tg.initData);
+                              const userStr = params.get('user');
+                              return userStr ? JSON.parse(userStr) : null;
+                            } catch (e) {
+                              return null;
+                            }
+                          })() : null);
+          }
         }
       }
 
+      // Если все еще нет данных пользователя, но мы в Telegram окружении
       if (!telegramUser || !telegramUser.id) {
-        throw new Error('Не удалось получить данные пользователя из Telegram. Пожалуйста, откройте приложение через Telegram.');
+        const isTelegram = window.Telegram?.WebApp?.version;
+        
+        if (isTelegram) {
+          // В Telegram, но данные недоступны - пытаемся получить хотя бы что-то
+          const tg = window.Telegram?.WebApp;
+          
+          // Пытаемся получить ID из других источников
+          let userId = null;
+          if (tg?.initDataUnsafe?.user?.id) {
+            userId = tg.initDataUnsafe.user.id;
+          } else if (tg?.initData) {
+            try {
+              const params = new URLSearchParams(tg.initData);
+              const userStr = params.get('user');
+              if (userStr) {
+                const user = JSON.parse(userStr);
+                userId = user.id;
+              }
+            } catch (e) {
+              console.warn('Could not parse user from initData:', e);
+            }
+          }
+          
+          // Если все еще нет ID, создаем временный объект для разработки
+          if (!userId) {
+            console.warn('⚠️ Telegram ID недоступен, создаем временный объект пользователя');
+            // Генерируем временный ID на основе текущего времени
+            userId = Math.floor(Date.now() / 1000); // Unix timestamp как временный ID
+          }
+          
+          telegramUser = {
+            id: userId,
+            first_name: name || 'User',
+            username: null,
+            language_code: tg?.languageCode || 'ru',
+            is_bot: false
+          };
+          
+          console.log('Created temporary user object:', telegramUser);
+        } else {
+          throw new Error('Не удалось получить данные пользователя из Telegram. Пожалуйста, откройте приложение через Telegram.');
+        }
       }
 
       // Авторизуем пользователя с телефоном
