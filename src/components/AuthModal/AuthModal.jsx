@@ -14,16 +14,44 @@ function AuthModal({ onAuthSuccess }) {
     setLoading(true);
 
     try {
-      // Создаем пользователя с предоставленными данными
-      // В реальном приложении ID должен быть из Telegram
-      const userData = {
-        id: Date.now(), // Временный ID для разработки
-        first_name: name,
-        phone_number: phone,
-      };
+      // Получаем данные пользователя из Telegram
+      let telegramUser = null;
+      
+      // Способ 1: Через @tma.js/sdk
+      try {
+        const { retrieveLaunchParams } = await import('@tma.js/sdk');
+        const { initData } = retrieveLaunchParams();
+        telegramUser = initData?.user;
+      } catch (sdkError) {
+        console.warn('SDK error:', sdkError);
+      }
+      
+      // Способ 2: Через window.Telegram.WebApp
+      if (!telegramUser && window.Telegram?.WebApp?.initDataUnsafe?.user) {
+        telegramUser = window.Telegram.WebApp.initDataUnsafe.user;
+      }
+      
+      // Способ 3: Парсинг initData
+      if (!telegramUser && window.Telegram?.WebApp?.initData) {
+        try {
+          const initData = window.Telegram.WebApp.initData;
+          const params = new URLSearchParams(initData);
+          const userParam = params.get('user');
+          if (userParam) {
+            telegramUser = JSON.parse(userParam);
+          }
+        } catch (parseError) {
+          console.warn('Parse error:', parseError);
+        }
+      }
 
-      const savedUser = await api.createOrUpdateUser(userData);
-      onAuthSuccess(savedUser || userData);
+      if (!telegramUser || !telegramUser.id) {
+        throw new Error('Не удалось получить данные пользователя из Telegram. Пожалуйста, откройте приложение через Telegram.');
+      }
+
+      // Авторизуем пользователя с телефоном
+      const response = await api.authUser(telegramUser, phone);
+      onAuthSuccess(response.user || telegramUser);
     } catch (err) {
       console.error('Auth error:', err);
       setError(err.message || 'Ошибка при регистрации. Попробуйте еще раз.');

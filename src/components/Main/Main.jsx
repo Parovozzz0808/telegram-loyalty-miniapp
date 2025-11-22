@@ -67,18 +67,26 @@ function Main() {
               setUserExists(true);
               setUser(existingUser);
               
-              // Получаем баллы лояльности
-              try {
-                const points = await api.getLoyaltyPoints(telegramUser.id);
-                setLoyaltyPoints(points);
-              } catch (err) {
-                console.warn('Loyalty points not available:', err);
-                // Устанавливаем значения по умолчанию
-                setLoyaltyPoints({ points: 0, total_earned: 0, total_spent: 0 });
+              // Проверяем, авторизован ли пользователь (есть ли телефон)
+              if (existingUser.phone_number) {
+                // Получаем баллы лояльности
+                try {
+                  const points = await api.getLoyaltyPoints(telegramUser.id);
+                  setLoyaltyPoints(points);
+                } catch (err) {
+                  console.warn('Loyalty points not available:', err);
+                  // Устанавливаем значения по умолчанию
+                  setLoyaltyPoints({ points: 0, total_earned: 0, total_spent: 0 });
+                }
+              } else {
+                // Пользователь существует, но не авторизован
+                console.log('User exists but not authorized, showing auth modal');
+                setShowAuth(true);
+                setUserExists(false);
               }
             } catch (getUserError) {
-              // Пользователь не найден - показываем форму авторизации
-              console.log('User not found, showing auth modal');
+              // Пользователь не найден или не авторизован - показываем форму авторизации
+              console.log('User not found or not authorized, showing auth modal');
               setShowAuth(true);
               setUserExists(false);
             }
@@ -117,17 +125,18 @@ function Main() {
 
   const handleAuthSuccess = async (userData) => {
     try {
-      // Сохраняем пользователя
-      const savedUser = await api.createOrUpdateUser(userData);
-      setUser(savedUser || userData);
+      // Пользователь уже сохранен через authUser, просто обновляем состояние
+      setUser(userData);
       setUserExists(true);
       setShowAuth(false);
       
       // Получаем баллы лояльности
       try {
-        const userId = savedUser?.id || userData.id;
-        const points = await api.getLoyaltyPoints(userId);
-        setLoyaltyPoints(points);
+        const userId = userData?.telegram_id || userData?.id;
+        if (userId) {
+          const points = await api.getLoyaltyPoints(userId);
+          setLoyaltyPoints(points);
+        }
       } catch (err) {
         console.warn('Loyalty points not available:', err);
         setLoyaltyPoints({ points: 0, total_earned: 0, total_spent: 0 });

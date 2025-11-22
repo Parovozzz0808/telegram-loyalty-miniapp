@@ -53,9 +53,20 @@ export const api = {
     return apiRequest(`/api/users/${telegramId}`);
   },
 
-  async createOrUpdateUser(userData) {
-    return apiRequest('/api/users', {
+  // Авторизация пользователя по телефону
+  async authUser(telegramUser, phoneNumber) {
+    return apiRequest('/api/users/auth', {
       method: 'POST',
+      body: JSON.stringify({
+        phone_number: phoneNumber
+      }),
+    });
+  },
+
+  // Обновление данных пользователя (без изменения телефона)
+  async updateUser(userData) {
+    return apiRequest('/api/users', {
+      method: 'PUT',
       body: JSON.stringify(userData),
     });
   },
