@@ -259,6 +259,7 @@ function Main() {
         try {
           await init();
           const { initData } = retrieveLaunchParams();
+          console.log(`initData${initData}`);
           telegramUser = initData?.user;
           console.log('User from @tma.js/sdk:', telegramUser);
         } catch (sdkError) {
